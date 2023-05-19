@@ -9,11 +9,12 @@ Library             RPA.Browser.Selenium    auto_close=${FALSE}
 Library             RPA.HTTP
 Library             RPA.Tables
 Library             RPA.Desktop.OperatingSystem
+Library             RPA.PDF
 
 
 *** Variables ***
-${GLOBAL_RETRY_AMOUNT}      5x
-${GLOBAL_RETRY_INTERVAL}    0.5s
+${GLOBAL_RETRY_AMOUNT}      6x
+${GLOBAL_RETRY_INTERVAL}    0.2s
 
 
 *** Tasks ***
@@ -34,11 +35,16 @@ Accept the alert message
 Fill and Submit the form for all of the orders
     ${orders}=    Download the data sheet and read it as a table
     FOR    ${order}    IN    @{orders}
-        #sometimes button wont work
+        Fill and Submit the form for one order    ${order}
+        Take screenshot of the robot image    ${order}
+        ##wait until button works
         Wait Until Keyword Succeeds
         ...    ${GLOBAL_RETRY_AMOUNT}
         ...    ${GLOBAL_RETRY_INTERVAL}
-        ...    Fill and Submit the form for one order    ${order}
+        ...    Click button to order
+        Create the pdf of the receipt    ${order}
+        Open pdf and add attach the robot image to it    ${order}
+        Click to go to another order
     END
 
 #
@@ -58,14 +64,42 @@ Download the data sheet and read it as a table
 Fill and Submit the form for one order
     [Arguments]    ${order}
     Wait Until Element Is Visible    class:form-group
-    #
+    #fill form
     Select From List By Value    head    ${order}[Head]
     Click Button    id-body-${order}[Body]
     Input Text    css:input.form-control    ${order}[Legs]
     Input Text    address    ${order}[Address]
+
+Take screenshot of the robot image
+    [Arguments]    ${order}
+    #before submitting, take screenshot of the robot
+    Click Button    preview
+    Wait Until Element Is Visible    css:div#robot-preview-image
+    Screenshot    css:div#robot-preview-image    ${OUTPUT_DIR}${/}order-${order}[Order number].png
+
+Click button to order
+    #order
     Click Button    order
-    #
-    Wait Until Element Is Visible    id:order-another
-    Click Button    id:order-another
+    Wait Until Element Is Visible    receipt
+
+Create the pdf of the receipt
+    [Arguments]    ${order}
+    #before making another order, create pdf receipt
+    ${receipt_element}=    Get Element Attribute    css:div#receipt    outerHTML
+    Html To Pdf    ${receipt_element}    ${OUTPUT_DIR}${/}order-${order}[Order number].pdf
+
+Open pdf and add attach the robot image to it
+    [Arguments]    ${order}
+    ${receipt_pdf}=    Open Pdf    ${OUTPUT_DIR}${/}order-${order}[Order number].pdf
+    ${robot_image}=    Create List    ${OUTPUT_DIR}${/}order-${order}[Order number].png
+    Add Files To Pdf
+    ...    ${robot_image}
+    ...    ${OUTPUT_DIR}${/}order-${order}[Order number].pdf
+    ...    append=True
+    Close Pdf    ${receipt_pdf}
+
+Click to go to another order
+    #click to make another order
+    Click Button When Visible    id:order-another
     #
     Accept the alert message
