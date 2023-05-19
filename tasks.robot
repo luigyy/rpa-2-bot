@@ -10,18 +10,24 @@ Library             RPA.HTTP
 Library             RPA.Tables
 Library             RPA.Desktop.OperatingSystem
 Library             RPA.PDF
+Library             RPA.FileSystem
+Library             RPA.Archive
 
 
 *** Variables ***
 ${GLOBAL_RETRY_AMOUNT}      6x
 ${GLOBAL_RETRY_INTERVAL}    0.2s
+${PDF_OUTPUT_DIRECTORY}=    ${CURDIR}${/}pdfs
 
 
 *** Tasks ***
 Order robots from RobotSpareBin and create ZIP of the receipts
+    Set up directories
     Open browser and go to the site
     Accept the alert message
     Fill and Submit the form for all of the orders
+    Create ZIP package from PDF files
+    [Teardown]    Close browser cleanup
 
 
 *** Keywords ***
@@ -52,6 +58,9 @@ Fill and Submit the form for all of the orders
 # nested
 #
 #
+
+Set up directories
+    Create Directory    ${PDF_OUTPUT_DIRECTORY}
 
 Download the data sheet and read it as a table
     Download    https://robotsparebinindustries.com/orders.csv    overwrite=True
@@ -86,20 +95,27 @@ Create the pdf of the receipt
     [Arguments]    ${order}
     #before making another order, create pdf receipt
     ${receipt_element}=    Get Element Attribute    css:div#receipt    outerHTML
-    Html To Pdf    ${receipt_element}    ${OUTPUT_DIR}${/}order-${order}[Order number].pdf
+    Html To Pdf    ${receipt_element}    ${PDF_OUTPUT_DIRECTORY}${/}order-${order}[Order number].pdf
 
 Open pdf and add attach the robot image to it
     [Arguments]    ${order}
-    ${receipt_pdf}=    Open Pdf    ${OUTPUT_DIR}${/}order-${order}[Order number].pdf
     ${robot_image}=    Create List    ${OUTPUT_DIR}${/}order-${order}[Order number].png
     Add Files To Pdf
     ...    ${robot_image}
-    ...    ${OUTPUT_DIR}${/}order-${order}[Order number].pdf
+    ...    ${PDF_OUTPUT_DIRECTORY}${/}order-${order}[Order number].pdf
     ...    append=True
-    Close Pdf    ${receipt_pdf}
 
 Click to go to another order
     #click to make another order
     Click Button When Visible    id:order-another
     #
     Accept the alert message
+
+Create ZIP package from PDF files
+    ${zip_file_name}=    Set Variable    ${OUTPUT_DIR}/PDFs.zip
+    Archive Folder With Zip
+    ...    ${PDF_OUTPUT_DIRECTORY}
+    ...    ${zip_file_name}
+
+Close browser cleanup
+    Close Browser
